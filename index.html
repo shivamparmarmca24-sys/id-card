@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D STL Viewer & Z-Plane Slicer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e1e2e 0%, #2d2d44 100%);
+            color: #e0e0e0;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .container {
+            display: flex;
+            height: 100vh;
+            gap: 0;
+        }
+
+        .viewport {
+            flex: 1;
+            position: relative;
+            background: #1a1a1a;
+            border-right: 2px solid #404060;
+        }
+
+        #canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        .controls-panel {
+            width: 320px;
+            background: #2d2d44;
+            padding: 20px;
+            overflow-y: auto;
+            border-right: 2px solid #404060;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .panel-section {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .panel-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #64b5f6;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-bottom: 1px solid #404060;
+            padding-bottom: 8px;
+        }
+
+        .drop-zone {
+            border: 2px dashed #64b5f6;
+            border-radius: 8px;
+            padding: 30px 15px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: rgba(100, 181, 246, 0.05);
+        }
+
+        .drop-zone:hover {
+            background: rgba(100, 181, 246, 0.1);
+            border-color: #90caf9;
+        }
+
+        .drop-zone.active {
+            background: rgba(100, 181, 246, 0.2);
+            border-color: #90caf9;
+        }
+
+        .drop-zone p {
+            font-size: 12px;
+            color: #90caf9;
+            line-height: 1.6;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .control-label {
+            font-size: 12px;
+            color: #b0b0b0;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .input-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        input[type="number"],
+        input[type="text"],
+        select {
+            flex: 1;
+            padding: 8px 12px;
+            background: #1a1a2e;
+            border: 1px solid #404060;
+            color: #e0e0e0;
+            border-radius: 4px;
+            font-size: 12px;
+            font-family: 'Courier New', monospace;
+        }
+
+        input[type="number"]:focus,
+        input[type="text"]:focus,
+        select:focus {
+            outline: none;
+            border-color: #64b5f6;
+            box-shadow: 0 0 8px rgba(100, 181, 246, 0.3);
+        }
+
+        input[type="range"] {
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: #404060;
+            outline: none;
+            -webkit-appearance: none;
+            appearance: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #64b5f6;
+            cursor: pointer;
+            box-shadow: 0 0 8px rgba(100, 181, 246, 0.5);
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #64b5f6;
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 0 8px rgba(100, 181, 246, 0.5);
+        }
+
+        button {
+            padding: 10px 16px;
+            background: linear-gradient(135deg, #64b5f6 0%, #42a5f5 100%);
+            color: #000;
+            border: none;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        button:hover {
+            background: linear-gradient(135deg, #90caf9 0%, #64b5f6 100%);
+            box-shadow: 0 4px 12px rgba(100, 181, 246, 0.4);
+        }
+
+        button:active {
+            transform: scale(0.98);
+        }
+
+        button:disabled {
+            background: #404060;
+            color: #808080;
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+        .info-box {
+            background: rgba(100, 181, 246, 0.1);
+            border-left: 3px solid #64b5f6;
+            padding: 12px;
+            border-radius: 4px;
+            font-size: 11px;
+            line-height: 1.6;
+            color: #b0b0b0;
+        }
+
+        .info-box strong {
+            color: #90caf9;
+            display: block;
+            margin-bottom: 4px;
+        }
+
+        .status-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #ff6b6b;
+            display: inline-block;
+            margin-right: 6px;
+        }
+
+        .status-indicator.ready {
+            background: #4caf50;
+        }
+
+        .status-text {
+            font-size: 11px;
+            color: #b0b0b0;
+            margin-top: 4px;
+        }
+
+        .model-stats {
+            background: rgba(100, 181, 246, 0.05);
+            border: 1px solid #404060;
+            padding: 12px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-family: 'Courier New', monospace;
+            line-height: 1.8;
+        }
+
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            color: #b0b0b0;
+        }
+
+        .stat-row span:last-child {
+            color: #64b5f6;
+            font-weight: 600;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 4px;
+            background: #404060;
+            border-radius: 2px;
+            overflow: hidden;
+            margin-top: 8px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #64b5f6, #42a5f5);
+            width: 0%;
+            transition: width 0.1s ease;
+        }
+
+        .layer-preview {
+            background: #1a1a2e;
+            border: 1px solid #404060;
+            border-radius: 4px;
+            padding: 8px;
+            max-height: 150px;
+            overflow-y: auto;
+            font-size: 10px;
+            font-family: 'Courier New', monospace;
+            line-height: 1.4;
+            color: #90caf9;
+        }
+
+        .scrollbar-thin::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .scrollbar-thin::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .scrollbar-thin::-webkit-scrollbar-thumb {
+            background: #404060;
+            border-radius: 3px;
+        }
+
+        .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+            background: #505070;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                flex-direction: column;
+            }
+
+            .controls-panel {
+                width: 100%;
+                max-height: 40vh;
+                border-right: none;
+                border-bottom: 2px solid #404060;
+            }
+
+            .viewport {
+                flex: 1;
+                border-right: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="viewport">
+            <canvas id="canvas"></canvas>
+        </div>
+        <div class="controls-panel scrollbar-thin">
+            <div class="panel-section">
+                <div class="panel-title">Model Import</div>
+                <div class="drop-zone" id="dropZone">
+                    <p>Drop STL file here<br>or click to select</p>
+                    <input type="file" id="fileInput" accept=".stl">
+                </div>
+                <div class="status-text">
+                    <span class="status-indicator" id="statusIndicator"></span>
+                    <span id="statusText">Ready</span>
+                </div>
+            </div>
+
+            <div class="panel-section" id="modelSection" style="display: none;">
+                <div class="panel-title">Model Info</div>
+                <div class="model-stats">
+                    <div class="stat-row">
+                        <span>Triangles:</span>
+                        <span id="triangleCount">0</span>
+                    </div>
+                    <div class="stat-row">
+                        <span>Vertices:</span>
+                        <span id="vertexCount">0</span>
+                    </div>
+                    <div class="stat-row">
+                        <span>Size X:</span>
+                        <span id="sizeX">0</span>
+                    </div>
+                    <div class="stat-row">
+                        <span>Size Y:</span>
+                        <span id="sizeY">0</span>
+                    </div>
+                    <div class="stat-row">
+                        <span>Size Z:</span>
+                        <span id="sizeZ">0</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel-section">
+                <div class="panel-title">Slicing Parameters</div>
+                <div class="control-group">
+                    <label class="control-label">Layer Height (mm)</label>
+                    <input type="number" id="layerHeight" value="0.2" min="0.1" max="1" step="0.1">
+                </div>
+                <div class="control-group">
+                    <label class="control-label">Z Offset (mm)</label>
+                    <input type="number" id="zOffset" value="0" min="-100" max="100" step="0.1">
+                </div>
+                <button id="sliceButton" disabled>Generate Layers</button>
+                <div class="info-box">
+                    <strong>Web Worker:</strong>
+                    Slicing runs on background thread. UI stays responsive.
+                </div>
+            </div>
+
+            <div class="panel-section" id="slicingSection" style="display: none;">
+                <div class="panel-title">Slicing Progress</div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+                <div class="status-text" id="progressText">0%</div>
+            </div>
+
+            <div class="panel-section" id="layerSection" style="display: none;">
+                <div class="panel-title">Layer Data</div>
+                <div class="layer-preview scrollbar-thin" id="layerPreview"></div>
+            </div>
+
+            <div class="panel-section">
+                <div class="panel-title">Controls</div>
+                <div class="info-box">
+                    <strong>Mouse:</strong>
+                    Left drag to rotate • Scroll to zoom • Right drag to pan
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="viewer.js"></script>
+</body>
+</html>
